@@ -67,11 +67,13 @@ jobs:
       - name: "Build UI"
         run: "cargo build --manifest-path=goxlr-utility-ui/src-tauri/Cargo.toml --target-dir=goxlr-utility/target --release"
 
-      # Prepare NSIS
+      # Prepare NSIS (chocolatey is more reliable than the sourceforge mirrors)
       - name: Install NSIS
-        uses: repolevedavaj/install-nsis@v1.0.3
-        with:
-          nsis-version: '3.11'
+        shell: pwsh
+        run: |
+          choco install nsis -y --no-progress
+          echo "C:\Program Files (x86)\NSIS\Bin" | Out-File -FilePath "$env:GITHUB_PATH" -Append
+          echo "C:\Program Files (x86)\NSIS" | Out-File -FilePath "$env:GITHUB_PATH" -Append
 
       - name: "Preparing NSIS"
         run: mkdir -p ${{ github.workspace }}/NSIS_Plugins/x86-unicode/
@@ -229,7 +231,7 @@ jobs:
         run: |
           wget http://s.sudre.free.fr/Software/files/Packages.dmg
           hdiutil attach Packages.dmg
-          sudo installer -pkg /Volumes/Packages\ 1.2.10/Install\ Packages.pkg -target /
+          sudo installer -pkg /Volumes/Packages*/Install\ Packages.pkg -target /
       - name: "Build LIPO Binaries"
         run: ./ci/build-macos-package '${{ needs.get_version.outputs.version }}'
         shell: bash
