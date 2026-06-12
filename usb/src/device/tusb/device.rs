@@ -104,6 +104,25 @@ impl TUSBAudioGoXLR {
             }
         }
     }
+
+    // Sends a Command Index Reset down the regular command pipe to check whether the device
+    // is already up and running. A GoXLR fresh from a cold boot won't respond to this until
+    // the vendor interface has been activated, so a failure here simply means we need to run
+    // the full init sequence.
+    fn is_device_initialised(&mut self) -> bool {
+        let mut request = vec![0; 16];
+        LittleEndian::write_u32(&mut request[0..4], Command::ResetCommandIndex.command_id());
+
+        if self.handle.send_request(2, 0, 0, &request).is_err() {
+            return false;
+        }
+
+        if !self.await_data() {
+            return false;
+        }
+
+        self.handle.read_response(3, 0, 0, 1040).is_ok()
+    }
 }
 
 impl AttachGoXLR for TUSBAudioGoXLR {
@@ -185,6 +204,20 @@ impl AttachGoXLR for TUSBAudioGoXLR {
             goxlr.stopped.store(true, Ordering::Relaxed);
             bail!("Unable to establish Event Loop..");
         }
+
+        // If the GoXLR is already up and running (eg. the daemon has been restarted), skip
+        // the audio initialisation entirely. Re-running it forces Windows to tear down and
+        // rebuild the GoXLR audio devices, which breaks any app currently holding on to them
+        // (Wave Link, OBS, Voicemeeter, etc.)
+        if goxlr.is_device_initialised() {
+            debug!("GoXLR is already initialised, skipping audio setup..");
+            return Ok(goxlr);
+        }
+
+        debug!("GoXLR did not respond to commands, performing full initialisation..");
+
+        // Drain any stale read events potentially left behind by the probe..
+        while goxlr.event_receivers.data_read.try_recv().is_ok() {}
 
         // Activate the Vendor interface, also initialises audio on Windows!
         if let Err(error) = goxlr.handle.read_response(0, 0, 0, 24) {
