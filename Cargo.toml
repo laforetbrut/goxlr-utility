@@ -16,7 +16,7 @@ members = [
 ]
 
 [workspace.package]
-version = "1.2.4"
+version = "1.2.5"
 edition = "2024"
 
 authors = ["Nathan Adams <dinnerbone@dinnerbone.com>", "Craig McLure <craig@mclure.net>", "Lars Mühlbauer <lm41@dismail.de>"]
